@@ -168,97 +168,97 @@
   </div>
 
   <script>
-    const form = document.getElementById("signForm");
-    const step1 = document.getElementById("step1");
-    const step2 = document.getElementById("step2");
-    const step3 = document.getElementById("step3");
-    const progressBar = document.getElementById("progressBar");
-    const progressText = document.getElementById("progressText");
-    const resultMessage = document.getElementById("resultMessage");
+const form = document.getElementById("signForm");
+const step1 = document.getElementById("step1");
+const step2 = document.getElementById("step2");
+const step3 = document.getElementById("step3");
+const progressBar = document.getElementById("progressBar");
+const progressText = document.getElementById("progressText");
+const resultMessage = document.getElementById("resultMessage");
 
-    // custom file input
-    document.querySelectorAll(".file-input").forEach((wrapper) => {
-      const input = wrapper.querySelector("input");
-      const span = wrapper.querySelector("span");
-      const btn = wrapper.querySelector("button");
+// custom file input
+document.querySelectorAll(".file-input").forEach((wrapper) => {
+  const input = wrapper.querySelector("input");
+  const span = wrapper.querySelector("span");
+  const btn = wrapper.querySelector("button");
 
-      btn.addEventListener("click", () => input.click());
-      input.addEventListener("change", () => {
-        if (input.files.length > 0) {
-          span.textContent = input.files[0].name;
-        } else {
-          span.textContent = "Chưa chọn file";
-        }
-      });
-    });
+  btn.addEventListener("click", () => input.click());
+  input.addEventListener("change", () => {
+    span.textContent = input.files.length > 0 ? input.files[0].name : "Chưa chọn file";
+  });
+});
 
-    function showStep(step) {
-      step1.classList.remove("active");
-      step2.classList.remove("active");
-      step3.classList.remove("active");
-      step.classList.add("active");
+function showStep(step) {
+  step1.classList.remove("active");
+  step2.classList.remove("active");
+  step3.classList.remove("active");
+  step.classList.add("active");
+}
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+
+  // Hiển thị bước 2 ngay khi submit
+  showStep(step2);
+  progressBar.style.width = "0%";
+  progressText.innerText = "0%";
+
+  const ipaFile = document.getElementById("ipa").files[0];
+  if (ipaFile && ipaFile.size > 300 * 1024 * 1024) {
+    alert("❌ IPA file phải nhỏ hơn hoặc bằng 300MB.");
+    showStep(step1);
+    return;
+  }
+
+  const formData = new FormData(form);
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", form.action, true);
+
+  xhr.upload.onprogress = (event) => {
+    if (event.lengthComputable) {
+      const percent = Math.round((event.loaded / event.total) * 100);
+      progressBar.style.width = percent + "%";
+      progressText.innerText = percent + "%";
     }
+  };
 
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const ipaFile = document.getElementById("ipa").files[0];
-      if (ipaFile && ipaFile.size > 300 * 1024 * 1024) {
-        alert("❌ IPA file phải nhỏ hơn hoặc bằng 300MB.");
-        return;
+  xhr.onload = () => {
+    if (xhr.status === 200) {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (data.installLink) {
+          resultMessage.innerHTML = `
+            ✅ Sign IPA Thành Công!<br><br>
+            <button id="installBtn">Cài đặt IPA</button>
+          `;
+          document.getElementById("installBtn").addEventListener("click", () => {
+            window.open(data.installLink, "_blank");
+          });
+        } else {
+          resultMessage.innerHTML = "⚠️ Phản hồi từ server không hợp lệ.";
+        }
+      } catch {
+        resultMessage.innerHTML = "⚠️ Không phân tích được phản hồi từ server.";
       }
-
-      const formData = new FormData(form);
-      showStep(step2);
-      progressBar.style.width = "0%";
-      progressText.innerText = "0%";
-
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", form.action, true);
-
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          progressBar.style.width = percent + "%";
-          progressText.innerText = percent + "%";
-        }
-      };
-
-      xhr.onload = () => {
-        if (xhr.status === 200) {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            if (data.installLink) {
-                resultMessage.innerHTML = `Sign IPA Thành Công!<br><br><button type="submit" id="installBtn">Cài đặt IPA</button>`;
-
-                const installBtn = document.getElementById('installBtn');
-                installBtn.addEventListener('click', () => {
-                    window.open(data.installLink, '_blank');
-                });
-            } else {
-              resultMessage.innerHTML = "⚠️ Phản hồi từ server không hợp lệ.";
-            }
-          } catch {
-            resultMessage.innerHTML = "⚠️ Không phân tích được phản hồi từ server.";
-          }
-        } else {
-          resultMessage.innerHTML = `❌ Lỗi ký IPA (status ${xhr.status}).`;
-        }
-        showStep(step3);
-      };
-
-      xhr.onerror = () => {
-        resultMessage.innerHTML = "❌ Lỗi mạng, vui lòng thử lại.";
-        showStep(step3);
-      };
-
-      xhr.send(formData);
-    });
-
-    function restart() {
-      form.reset();
-      document.querySelectorAll(".file-input span").forEach(span => span.textContent = "Chưa chọn file");
-      showStep(step1);
+    } else {
+      resultMessage.innerHTML = `❌ Lỗi ký IPA (status ${xhr.status})`;
     }
-  </script>
+    showStep(step3);
+  };
+
+  xhr.onerror = () => {
+    resultMessage.innerHTML = "❌ Lỗi mạng hoặc file quá lớn. Vui lòng thử lại.";
+    showStep(step3);
+  };
+
+  xhr.send(formData);
+});
+
+function restart() {
+  form.reset();
+  document.querySelectorAll(".file-input span").forEach(span => span.textContent = "Chưa chọn file");
+  showStep(step1);
+}
+</script>
 </body>
 </html>
