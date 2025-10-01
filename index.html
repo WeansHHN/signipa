@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IPA Signer</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 25px;
+      width: 50%;
+      max-width: 420px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    .card.active { display: block; }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #38bdf8;
+    }
+    label {
+      font-weight: 500;
+      display: block;
+      margin-bottom: 6px;
+      color: #cbd5e1;
+    }
+
+    /* Custom file input */
+    .file-input {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #334155;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      margin-bottom: 15px;
+      transition: 0.2s;
+    }
+    .file-input:hover {
+      background: #3b4a65;
+    }
+    .file-input span {
+      color: #cbd5e1;
+      font-size: 14px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      max-width: 250px;
+    }
+    .file-input button {
+      background: #38bdf8;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .file-input input {
+      display: none;
+    }
+
+    input[type="password"] {
+      width: 92%;
+      padding: 10px;
+      border: none;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      background: #334155;
+      color: #fff;
+    }
+    button[type="submit"] {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #06b6d4, #3b82f6);
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button[type="submit"]:hover { opacity: 0.9; }
+
+    .progress-container {
+      width: 100%;
+      background: #334155;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 20px 0;
+    }
+    .progress-bar {
+      height: 12px;
+      width: 0%;
+      background: linear-gradient(90deg, #22c55e, #84cc16);
+      transition: width 0.3s;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Bước 1 -->
+  <div class="card active" id="step1">
+    <h2>Bước 1: Chọn file</h2>
+    <form id="signForm" action="https://signipa.serverhhnios.io.vn/sign" method="POST" enctype="multipart/form-data">
+
+      <label>IPA File <small>(Tùy chọn, max 300MB)</small></label>
+      <div class="file-input">
+        <span id="ipaName">Chưa chọn file</span>
+        <button type="button">Chọn</button>
+        <input type="file" id="ipa" name="ipa" accept=".ipa">
+      </div>
+
+      <label>P12 File <small>(Bắt buộc)</small></label>
+      <div class="file-input">
+        <span id="p12Name">Chưa chọn file</span>
+        <button type="button">Chọn</button>
+        <input type="file" id="p12" name="p12" accept=".p12" required>
+      </div>
+
+      <label>.mobileprovision File <small>(Bắt buộc)</small></label>
+      <div class="file-input">
+        <span id="provName">Chưa chọn file</span>
+        <button type="button">Chọn</button>
+        <input type="file" id="mobileprovision" name="mobileprovision" accept=".mobileprovision" required>
+      </div>
+
+      <label for="p12_password">P12 Password <small>(Tùy chọn)</small></label>
+      <input type="password" id="p12_password" name="p12_password" placeholder="Nhập mật khẩu P12">
+
+      <button type="submit">Tiếp tục</button>
+    </form>
+  </div>
+
+  <!-- Bước 2 -->
+  <div class="card" id="step2">
+    <h2>Bước 2: Đang tải file lên...</h2>
+    <div class="progress-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <p id="progressText" style="text-align:center; margin-top:10px;">0%</p>
+  </div>
+
+  <!-- Bước 3 -->
+  <div class="card" id="step3">
+    <h2>Bước 3: Hoàn tất</h2>
+    <p id="resultMessage" style="text-align:center;"></p>
+    <button type="submit" onclick="restart()">Ký lại file khác</button>
+  </div>
+
+  <script>
+    const form = document.getElementById("signForm");
+    const step1 = document.getElementById("step1");
+    const step2 = document.getElementById("step2");
+    const step3 = document.getElementById("step3");
+    const progressBar = document.getElementById("progressBar");
+    const progressText = document.getElementById("progressText");
+    const resultMessage = document.getElementById("resultMessage");
+
+    // custom file input
+    document.querySelectorAll(".file-input").forEach((wrapper) => {
+      const input = wrapper.querySelector("input");
+      const span = wrapper.querySelector("span");
+      const btn = wrapper.querySelector("button");
+
+      btn.addEventListener("click", () => input.click());
+      input.addEventListener("change", () => {
+        if (input.files.length > 0) {
+          span.textContent = input.files[0].name;
+        } else {
+          span.textContent = "Chưa chọn file";
+        }
+      });
+    });
+
+    function showStep(step) {
+      step1.classList.remove("active");
+      step2.classList.remove("active");
+      step3.classList.remove("active");
+      step.classList.add("active");
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const ipaFile = document.getElementById("ipa").files[0];
+      if (ipaFile && ipaFile.size > 300 * 1024 * 1024) {
+        alert("❌ IPA file phải nhỏ hơn hoặc bằng 300MB.");
+        return;
+      }
+
+      const formData = new FormData(form);
+      showStep(step2);
+      progressBar.style.width = "0%";
+      progressText.innerText = "0%";
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", form.action, true);
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          progressBar.style.width = percent + "%";
+          progressText.innerText = percent + "%";
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (data.installLink) {
+                resultMessage.innerHTML = `Sign IPA Thành Công!<br><br><button type="submit" id="installBtn">Cài đặt IPA</button>`;
+
+                const installBtn = document.getElementById('installBtn');
+                installBtn.addEventListener('click', () => {
+                    window.open(data.installLink, '_blank');
+                });
+            } else {
+              resultMessage.innerHTML = "⚠️ Phản hồi từ server không hợp lệ.";
+            }
+          } catch {
+            resultMessage.innerHTML = "⚠️ Không phân tích được phản hồi từ server.";
+          }
+        } else {
+          resultMessage.innerHTML = `❌ Lỗi ký IPA (status ${xhr.status}).`;
+        }
+        showStep(step3);
+      };
+
+      xhr.onerror = () => {
+        resultMessage.innerHTML = "❌ Lỗi mạng, vui lòng thử lại.";
+        showStep(step3);
+      };
+
+      xhr.send(formData);
+    });
+
+    function restart() {
+      form.reset();
+      document.querySelectorAll(".file-input span").forEach(span => span.textContent = "Chưa chọn file");
+      showStep(step1);
+    }
+  </script>
+</body>
+</html>
